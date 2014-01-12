@@ -1,0 +1,3 @@
+An Agda implementation of what aims to model the behaviour of Haskell's Attoparsec library.
+
+This implementation simply uses Strings/[Char] and does not worry about the performance of the resulting parser. We are simply interested in a parser implementation that produces the same output as Attoparsec does.
