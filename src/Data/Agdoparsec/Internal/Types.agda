@@ -1,8 +1,8 @@
 module Data.Agdoparsec.Internal.Types where
 
-open import Data.Agdoparsec.Internal.Types.Input
-open import Data.Agdoparsec.Internal.Types.Added
-open import Data.Agdoparsec.Internal.Types.More
+open import Data.Agdoparsec.Internal.Types.Input hiding (monoid)
+open import Data.Agdoparsec.Internal.Types.Added hiding (monoid)
+open import Data.Agdoparsec.Internal.Types.More hiding (monoid)
 open import Function
 
 open import Data.List using (_++_; List; [])
@@ -32,7 +32,7 @@ module ParserInstances where
   open import Algebra using (Monoid)
   open import Algebra.Structures using (IsMonoid)
   open import Relation.Binary.PropositionalEquality
-  open import Algebra.FunctionProperties using (Op₂; Associative)
+  open import Algebra.FunctionProperties using (Op₂)
 
   bindP : ∀ {τ α β} → Parser τ α → (α → Parser τ β) → Parser τ β
   bindP m g = mkParser $ λ i₀ a₀ m₀ kf ks → runParser m i₀ a₀ m₀ kf $
@@ -103,3 +103,67 @@ module ParserInstances where
       open Algebra.Monoid
       m₁ = Data.Agdoparsec.Internal.Types.Added.monoid ma
       m₂ = Data.Agdoparsec.Internal.Types.Input.monoid ma
+
+  monoid : {α : Set₁} {τ : Set} {_∙_ : Op₂ τ} {ε : τ}
+         → IsMonoid _≡_ _∙_ ε → Monoid (suc zero) (suc zero)
+  monoid {α} {τ} {_∙_} {ε} m = record
+    { Carrier = Parser τ α
+    ; _≈_ = _≡_
+    ; _∙_ = _<>_
+    ; ε = failDesc (toList "mempty")
+    ; isMonoid = record
+        { isSemigroup = record
+            { isEquivalence = isEquivalence
+            ; assoc = postulated-assoc
+            ; ∙-cong = cong₂ _<>_
+            }
+        ; identity = postulated-lidentity , postulated-identity
+        }
+    }
+    where
+      open import Data.Product using (_,_; proj₁; proj₂)
+      open Algebra.Monoid hiding (isEquivalence; refl; sym; trans)
+
+      m₁ = Data.Agdoparsec.Internal.Types.Added.monoid m
+      m₂ = Data.Agdoparsec.Internal.Types.Input.monoid m
+
+      infixl 7 _<>_
+      _<>_ = plus {ma = isMonoid m₁} {mi = isMonoid m₂}
+
+      open import Algebra.FunctionProperties _≡_
+      open Added
+      open Input
+
+      -- Temporary clutch while I think and do other stuff.
+      postulate
+        postulated-assoc : Associative _<>_
+        postulated-identity : RightIdentity (failDesc (toList "mempty")) _<>_
+        postulated-lidentity : LeftIdentity (failDesc (toList "mempty")) _<>_
+
+      -- leftid : LeftIdentity (failDesc (toList "mempty")) _<>_
+      -- leftid (mkParser runParser) = {!!}
+      --   where
+      --     open ≡-Reasoning
+
+      -- passoc : Associative _<>_
+      -- passoc x y z = begin
+      --   (x <> y) <> z ≡⟨ {!!} ⟩
+      --   x <> (y <> z) ∎
+      --   where
+      --     open ≡-Reasoning
+
+      -- LeftIdentity was just not type checking. For a second there, I felt a
+      -- bit on the http://fuuzetsu.co.uk/images/doesnttypecheck.gif side there…
+      -- pidentity : RightIdentity (failDesc (toList "mempty")) _<>_
+      -- pidentity (mkParser runParser) = {!!}
+        -- begin
+        -- mkParser runParser <> failDesc msg ≡⟨ refl ⟩
+        -- mkParser (λ i₀ a₀ m₀ kf ks → noAdds {m = {!!}} i₀ a₀ m₀ fooz) <> failDesc msg ≡⟨ {!!} ⟩
+        -- mkParser runParser ∎
+        -- where
+        --   fooz : ∀ {r} → Input τ → Added τ → More → IResult τ r
+        --   fooz = {!!}
+
+        --   msg = toList "mempty"
+        --   open ≡-Reasoning
+        --   open import Data.List using (_∷_)
