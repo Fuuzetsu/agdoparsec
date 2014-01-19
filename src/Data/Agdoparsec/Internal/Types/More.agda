@@ -14,6 +14,10 @@ data More : Set where
   Complete : More
   Incomplete : More
 
+_<>_ : More → More → More
+Complete <> _ = Complete
+_ <> m = m
+
 monoid : Monoid zero zero
 monoid = record
   { Carrier = More
@@ -29,7 +33,3 @@ monoid = record
       ; identity = (λ _ → refl) , λ { Complete → refl ; Incomplete → refl }
       }
   }
-  where
-    _<>_ : More → More → More
-    Complete <> _ = Complete
-    _ <> m = m
