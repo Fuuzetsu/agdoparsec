@@ -2,7 +2,7 @@ module Data.Agdoparsec.Internal.Types where
 
 open import Data.Agdoparsec.Internal.Types.Input hiding (monoid)
 open import Data.Agdoparsec.Internal.Types.Added hiding (monoid)
-open import Data.Agdoparsec.Internal.Types.More hiding (monoid)
+open import Data.Agdoparsec.Internal.Types.More hiding (monoid; _<>_)
 open import Function
 
 open import Data.List using (_++_; List; [])
@@ -56,7 +56,7 @@ module ParserInstances where
   noAdds : ∀ {τ ε} → {r : Set}
          → {∙ : Op₂ {zero} (Added τ)} → {m : IsMonoid _≡_ ∙ ε}
          → Input τ → Added τ → More → (Input τ → Added τ → More → r) → r
-  noAdds {ε = ε} i₀ a₀ m₀ f = f i₀ ε m₀
+  noAdds {ε = ε} i₀ _ m₀ f = f i₀ ε m₀
 
   addS : ∀ {τ εa εi} → {r : Set}
        → {_a∙_ : Op₂ {zero} (Added τ)} {ma : IsMonoid _≡_ _a∙_ εa}
@@ -117,7 +117,7 @@ module ParserInstances where
             ; assoc = postulated-assoc
             ; ∙-cong = cong₂ _<>_
             }
-        ; identity = postulated-lidentity , postulated-identity
+        ; identity = leftid , postulated-identity
         }
     }
     where
@@ -126,6 +126,9 @@ module ParserInstances where
 
       m₁ = Data.Agdoparsec.Internal.Types.Added.monoid m
       m₂ = Data.Agdoparsec.Internal.Types.Input.monoid m
+
+      amonoid = m₁
+      imonoid = m₂
 
       infixl 7 _<>_
       _<>_ = plus {ma = isMonoid m₁} {mi = isMonoid m₂}
@@ -138,12 +141,133 @@ module ParserInstances where
       postulate
         postulated-assoc : Associative _<>_
         postulated-identity : RightIdentity (failDesc (toList "mempty")) _<>_
-        postulated-lidentity : LeftIdentity (failDesc (toList "mempty")) _<>_
 
-      -- leftid : LeftIdentity (failDesc (toList "mempty")) _<>_
-      -- leftid (mkParser runParser) = {!!}
+        ext : ∀ {a b} → Extensionality a b
+
+      cong₅ : {a b c d e f : Level} {A : Set a} {B : Set b} {C : Set c}
+            → {D : Set d} {E : Set e} {F : Set f}
+            → {ax ay : A} {bx by : B} {cx cy : C} {dx dy : D} {ex ey : E}
+            → (g : A → B → C → D → E → F)
+            → ax ≡ ay → bx ≡ by → cx ≡ cy → dx ≡ dy → ex ≡ ey
+            → g ax bx cx dx ex ≡ g ay by cy dy ey
+      cong₅ f refl refl refl refl refl = refl
+
+      cong₄ : {a b c d e : Level} {A : Set a} {B : Set b} {C : Set c}
+            → {D : Set d} {E : Set e}
+            → {ax ay : A} {bx by : B} {cx cy : C} {dx dy : D}
+            → (g : A → B → C → D → E)
+            → ax ≡ ay → bx ≡ by → cx ≡ cy → dx ≡ dy
+            → g ax bx cx dx ≡ g ay by cy dy
+      cong₄ f refl refl refl refl = refl
+
+      cong₃ : {a b c d : Level} {A : Set a} {B : Set b} {C : Set c}
+            → {D : Set d}
+            → {ax ay : A} {bx by : B} {cx cy : C}
+            → (g : A → B → C → D)
+            → ax ≡ ay → bx ≡ by → cx ≡ cy
+            → g ax bx cx ≡ g ay by cy
+      cong₃ f refl refl refl = refl
+
+
+      open Data.Agdoparsec.Internal.Types.More renaming (_<>_ to _<>m_)
+
+
+      err = toList "Failed reading: mempty"
+
+      Iid : ∀ {x} → I (unI x ∙ ε) ≡ x
+      Iid {x} = (proj₂ ∘ IsMonoid.identity $ isMonoid m₂) x
+
+      Aid : ∀ {x} → A (unA x ∙ ε) ≡ x
+      Aid {x} = (proj₂ ∘ IsMonoid.identity $ isMonoid m₁) x
+
+      Mid : ∀ {x} → x <>m x ≡ x
+      Mid {Complete} = refl
+      Mid {Incomplete} = refl
+
+
+      postulate
+        impExt : {f g : ∀ {r} → Input τ → Added τ → More
+                      → Failure τ r → Success τ α r → IResult τ r}
+               → (∀ r′ i a m kf ks → f {r′} i a m kf ks ≡ g {r′} i a m kf ks)
+               → (λ {r} i a m kf ks → f {r} i a m kf ks)
+                 ≡ (λ {r} i a m kf ks → g {r} i a m kf ks)
+
+
+      unId : ∀ p → ∀ {r i₀ a₀ m₀} → {kf : Failure τ r} → ∀ {ks}
+           → Parser.runParser p {r} (I (unI i₀ ∙ ε)) (A (unA a₀ ∙ ε))
+                              (m₀ <>m m₀) kf ks
+            ≡ Parser.runParser p i₀ a₀ m₀ kf ks
+      unId p = cong₅ (Parser.runParser p) Iid Aid Mid refl refl
+
+      cong-mkParser : {f g : ∀ {r} → Input τ → Added τ → More
+                                   → Failure τ r → Success τ α r
+                                   → IResult τ r}
+                    → (∀ r′ i a m kf ks → f {r′} i a m kf ks
+                                          ≡ g {r′} i a m kf ks)
+                    → mkParser f ≡ mkParser g
+      cong-mkParser p = cong mkParser (impExt p)
+
+      -- cong-runParser : ∀ p → {f g : ∀ {r} → Input τ → Added τ → More
+      --                        → Failure τ r → Success τ α r
+      --                        → IResult τ r}
+      --                → (∀ r′ i a m kf ks → f {r′} i a m kf ks
+      --                  ≡ g {r′} i a m kf ks)
+      --                → Parser.runParser p f ≡ Parser.runParser p g
+      -- cong-runParser p = cong Parser.runParser {!!}
+
+      leftid : LeftIdentity (failDesc (toList "mempty")) _<>_
+      leftid p = begin
+        failDesc (toList "mempty") <> p ≡⟨ refl ⟩
+        mkParser (λ i₀ a₀ m₀ kf ks → kf i₀ a₀ m₀ [] err) <> p ≡⟨ refl ⟩
+        mkParser
+          (λ i₀ a₀ m₀ kf ks →
+            Parser.runParser p (I (unI i₀ ∙ ε)) (A (unA a₀ ∙ ε)) (m₀ <>m m₀) kf
+            ks) ≡⟨ cong-mkParser (λ r i₀ a₀ m₀ kf ks → unId p) ⟩
+        mkParser
+          (λ i₀ a₀ m₀ kf ks →
+            Parser.runParser p i₀ a₀ m₀ kf ks)
+        ≡⟨ cong-mkParser (λ r i₀ a₀ m₀ kf ks → refl) ⟩
+        p ∎
+        where
+          open ≡-Reasoning
+
+
+      -- rightid : RightIdentity (failDesc (toList "mempty")) _<>_
+      -- rightid p =
+      --   begin
+      --   p <> errp ≡⟨ refl ⟩
+      --   mkParser
+      --     (λ {r} i₀ a₀ m₀ kf ks →
+      --        noAdds {m = isMonoid amonoid} i₀ a₀ m₀ $
+      --        (λ i₂ a₂ m₃ →
+      --           Parser.runParser p i₂ a₂ m₃
+      --           (λ i₁ a₁ m₄ _ _ →
+      --              addS {ma = isMonoid amonoid} {mi = isMonoid imonoid} i₀ a₀ m₀ i₁ a₁ m₄
+      --              (λ i₃ a₃ m₅ → Parser.runParser errp i₃ a₃ m₅ kf ks))
+      --           (λ i₁ a₁ → ks i₁ (a₀ a∙ a₁)))) ≡⟨ {!!} ⟩
+      --   p ∎
       --   where
       --     open ≡-Reasoning
+      --     _a∙_ = Monoid._∙_ amonoid
+      --     _i∙_ = Monoid._∙_ imonoid
+
+      --     errm = toList "Failed reading: mempty"
+      --     errp = failDesc (toList "mempty")
+
+      --     -- ksp : ∀ r ks a₀ → (λ i₁ a₁ → ks i₁ (A (unA a₀ ∙ unA a₁))) ≡ ks
+      --     -- ksp r ks (A unA) = {!cong !}
+
+
+      --     kfp : ∀ {r} i₀ a₀ m₀ → (kf : Failure τ r)
+      --         → (λ i₁ a₁ m₁ kf₁ ks₁ → kf (I (unI i₀ ∙ unA a₁))
+      --                                    (A (unA a₀ ∙ unA a₁))
+      --                                    (m₀ <>m m₁) [] errm)
+      --           ≡ λ i₁ a₁ m₁ kf₁ ks₁ → kf i₁ a₁ m₁ kf₁ ks₁
+      --     kfp i₀ a₀ m₀ kf = {!!}
+
+          -- foo : {!!} → {!!} →  {!!} → {!!} → {!!} → {!!} → {!!} → {!!}
+          -- foo = {!!}
+
 
       -- passoc : Associative _<>_
       -- passoc x y z = begin
