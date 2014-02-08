@@ -1,3 +1,15 @@
 An Agda implementation of what aims to model the behaviour of Haskell's Attoparsec library.
 
 This implementation simply uses Strings/[Char] and does not worry about the performance of the resulting parser. We are simply interested in a parser implementation that produces the same output as Attoparsec does.
+
+The project is temporarily on hiatus as the author needs to rethink the goal.
+
+The fundamental problem is that Attoparsec uses combinators from Alternative which are inherently non-terminating. What needs to happen is that we either end up using co-induction to model that or we only implement best-faith combinators, such as those only working on right-recursive grammars at which point it's not as close to the Attoparsec model as we'd like.
+
+Nils Anders Danielsson appears to have written a parser library in Agda already but it does not compile with current Agda. I am currently waiting for him to find some time and give it a look.
+
+Related reading:
+http://www.andres-loeh.de/DependentlyTypedGrammars/DependentlyTypedGrammars.pdf
+http://www.andres-loeh.de/STC-AgdaParsers.pdf
+http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.157.8813&rep=rep1&type=pdf
+http://sneezy.cs.nott.ac.uk/fplunch/weblog/?p=271
